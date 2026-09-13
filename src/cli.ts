@@ -1,9 +1,14 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import pc from "picocolors";
+import { TargetNotFoundError, resolveTarget } from "./core/resolve-target.js";
+import {
+  flattenRules,
+  parseMarkdownInstructions,
+} from "./parsers/markdown-instructions.js";
 
 const VERSION = "0.1.0";
 
@@ -35,9 +40,26 @@ export function createProgram(): Command {
         process.exit(1);
       }
 
-      console.log(
-        `ruler v${VERSION} — auditor de instrucciones para agentes. Análisis: próximamente`,
-      );
+      let filePath: string;
+      try {
+        filePath = resolveTarget(resolve(targetPath));
+      } catch (err) {
+        if (err instanceof TargetNotFoundError) {
+          console.error(
+            pc.red(`Error: no AGENTS.md or CLAUDE.md found in ${targetPath}`),
+          );
+          process.exit(1);
+        }
+        throw err;
+      }
+
+      const content = readFileSync(filePath, "utf8");
+      const doc = parseMarkdownInstructions(content);
+      const rules = flattenRules(doc);
+      console.log(`${rules.length} rules`);
+      for (const rule of rules) {
+        console.log(`line ${rule.line}: ${rule.text}`);
+      }
     });
 
   return program;
