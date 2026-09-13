@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import pc from "picocolors";
 import { TargetNotFoundError, resolveTarget } from "./core/resolve-target.js";
+import { averageScore, scoreRule } from "./core/score-rule.js";
 import {
   flattenRules,
   parseMarkdownInstructions,
@@ -57,8 +58,14 @@ export function createProgram(): Command {
       const doc = parseMarkdownInstructions(content);
       const rules = flattenRules(doc);
       console.log(`${rules.length} rules`);
+      const scores: number[] = [];
       for (const rule of rules) {
-        console.log(`line ${rule.line}: ${rule.text}`);
+        const { score } = scoreRule(rule);
+        scores.push(score);
+        console.log(`line ${rule.line} [${score}/10]: ${rule.text}`);
+      }
+      if (rules.length > 0) {
+        console.log(`avg: ${averageScore(scores).toFixed(1)}/10`);
       }
     });
 

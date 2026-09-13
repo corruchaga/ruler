@@ -72,14 +72,15 @@ describe("createProgram", () => {
     expect(exitCode).toBeUndefined();
     expect(logs).toEqual([
       "8 rules",
-      "line 5: Always use TypeScript strict mode in new files",
-      "line 6: Never commit secrets or API keys",
-      "line 7: Prefer small pull requests over large ones",
-      "line 11: Do not run destructive git commands",
-      "line 12: Never skip the test suite",
-      "line 14: Always write tests for new public APIs.",
-      "line 18: Keep functions under fifty lines",
-      "line 19: Name files in kebab-case",
+      "line 5 [9/10]: Always use TypeScript strict mode in new files",
+      "line 6 [8/10]: Never commit secrets or API keys",
+      "line 7 [2/10]: Prefer small pull requests over large ones",
+      "line 11 [2/10]: Do not run destructive git commands",
+      "line 12 [10/10]: Never skip the test suite",
+      "line 14 [8/10]: Always write tests for new public APIs.",
+      "line 18 [7/10]: Keep functions under fifty lines",
+      "line 19 [8/10]: Name files in kebab-case",
+      "avg: 6.8/10",
     ]);
   });
 
@@ -102,7 +103,8 @@ describe("createProgram", () => {
       expect(exitCode).toBeUndefined();
       expect(logs).toEqual([
         "1 rules",
-        "line 1: Always keep directory resolution covered here.",
+        "line 1 [2/10]: Always keep directory resolution covered here.",
+        "avg: 2.0/10",
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
