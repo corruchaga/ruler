@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import pc from "picocolors";
+import { checkFreshness, formatFreshness, resolveTargetDir } from "./core/freshness.js";
 import { TargetNotFoundError, resolveTarget } from "./core/resolve-target.js";
 import { averageScore, scoreRule } from "./core/score-rule.js";
 import {
@@ -57,6 +58,7 @@ export function createProgram(): Command {
       const content = readFileSync(filePath, "utf8");
       const doc = parseMarkdownInstructions(content);
       const rules = flattenRules(doc);
+      const targetDir = resolveTargetDir(resolve(targetPath));
       console.log(`${rules.length} rules`);
       const scores: number[] = [];
       for (const rule of rules) {
@@ -66,6 +68,9 @@ export function createProgram(): Command {
       }
       if (rules.length > 0) {
         console.log(`avg: ${averageScore(scores).toFixed(1)}/10`);
+      }
+      for (const line of formatFreshness(checkFreshness(doc, targetDir).findings)) {
+        console.log(line);
       }
     });
 

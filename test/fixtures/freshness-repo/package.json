@@ -1,0 +1,10 @@
+{
+  "name": "freshness-repo",
+  "private": true,
+  "scripts": {
+    "build": "echo ok"
+  },
+  "dependencies": {
+    "left-pad": "1.0.0"
+  }
+}

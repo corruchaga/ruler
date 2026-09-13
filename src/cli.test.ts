@@ -81,6 +81,7 @@ describe("createProgram", () => {
       "line 18 [7/10]: Keep functions under fifty lines",
       "line 19 [8/10]: Name files in kebab-case",
       "avg: 6.8/10",
+      "freshness: OK",
     ]);
   });
 
@@ -88,7 +89,7 @@ describe("createProgram", () => {
     const program = createProgram();
     await program.parseAsync([vacio], { from: "user" });
     expect(exitCode).toBeUndefined();
-    expect(logs).toEqual(["0 rules"]);
+    expect(logs).toEqual(["0 rules", "freshness: OK"]);
   });
 
   it("resolves AGENTS.md inside a directory and prints exact counts", async () => {
@@ -105,9 +106,30 @@ describe("createProgram", () => {
         "1 rules",
         "line 1 [2/10]: Always keep directory resolution covered here.",
         "avg: 2.0/10",
+        "freshness: OK",
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("prints freshness findings for the mini-repo fixture", async () => {
+    const repo = resolve("test/fixtures/freshness-repo");
+    const program = createProgram();
+    await program.parseAsync([repo], { from: "user" });
+    expect(exitCode).toBeUndefined();
+    expect(logs[0]).toBe("6 rules");
+    expect(
+      logs.some((line) =>
+        line.startsWith("line 8 [FRESHNESS]: ruta - src/no-existo/ no encontrada"),
+      ),
+    ).toBe(true);
+    expect(logs).toContain(
+      "line 9 [FRESHNESS]: script - compilar no encontrada (package.json scripts)",
+    );
+    expect(logs).toContain(
+      "line 10 [FRESHNESS]: dependencia - no-such-pkg no encontrada (package.json dependencies/devDependencies)",
+    );
+    expect(logs.includes("freshness: OK")).toBe(false);
   });
 });
