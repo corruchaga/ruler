@@ -4,6 +4,10 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createProgram } from "./cli.js";
 
+function stripAnsi(text: string): string {
+  return text.replace(/\x1B\[[0-9;]*m/g, "");
+}
+
 const bueno = resolve("test/fixtures/agents-bueno.md");
 const vacio = resolve("test/fixtures/agents-vacio.md");
 
@@ -24,7 +28,7 @@ describe("createProgram", () => {
       errors.push(String(msg ?? ""));
     });
     vi.spyOn(console, "log").mockImplementation((msg?: unknown) => {
-      logs.push(String(msg ?? ""));
+      logs.push(stripAnsi(String(msg ?? "")));
     });
   });
 
@@ -82,6 +86,8 @@ describe("createProgram", () => {
       "line 19 [8/10]: Name files in kebab-case",
       "avg: 6.8/10",
       "freshness: OK",
+      "noise: 5% (~87 útiles de 92 totales)",
+      "line 1 [RUIDO]: documentación — Project Agents",
     ]);
   });
 
@@ -89,7 +95,11 @@ describe("createProgram", () => {
     const program = createProgram();
     await program.parseAsync([vacio], { from: "user" });
     expect(exitCode).toBeUndefined();
-    expect(logs).toEqual(["0 rules", "freshness: OK"]);
+    expect(logs).toEqual([
+      "0 rules",
+      "freshness: OK",
+      "noise: 100% (~0 útiles de 0 totales)",
+    ]);
   });
 
   it("resolves AGENTS.md inside a directory and prints exact counts", async () => {
@@ -107,6 +117,7 @@ describe("createProgram", () => {
         "line 1 [2/10]: Always keep directory resolution covered here.",
         "avg: 2.0/10",
         "freshness: OK",
+        "noise: 0% (~12 útiles de 12 totales)",
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -131,5 +142,7 @@ describe("createProgram", () => {
       "line 10 [FRESHNESS]: dependencia - no-such-pkg no encontrada (package.json dependencies/devDependencies)",
     );
     expect(logs.includes("freshness: OK")).toBe(false);
+    expect(logs).toContain("noise: 6% (~52 útiles de 55 totales)");
+    expect(logs).toContain("line 1 [RUIDO]: documentación — Mini repo");
   });
 });
