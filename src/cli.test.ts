@@ -74,11 +74,10 @@ describe("createProgram", () => {
     expect(exitCode).toBeUndefined();
     const text = stdout();
     expect(text).toContain("score  79/100");
-    expect(text).toContain("8 reglas · avg 6.8/10 · freshness OK");
-    expect(text).toContain("revisar");
-    expect(text).toMatch(/ℹ {2}documentación — Project Agents/);
+    expect(text).toContain("8 rules · avg 6.8/10 · freshness OK");
+    expect(text).toContain("review");
+    expect(text).toMatch(/ℹ {2}documentation — Project Agents/);
     expect(text).not.toContain("line 5 [9/10]");
-    expect(text).not.toContain("8 rules");
   });
 
   it("prints score 0 for an empty agents file", async () => {
@@ -87,7 +86,7 @@ describe("createProgram", () => {
     expect(exitCode).toBeUndefined();
     const text = stdout();
     expect(text).toContain("score  0/100");
-    expect(text).toContain("0 reglas");
+    expect(text).toContain("0 rules");
     expect(text).toContain("freshness OK");
   });
 
@@ -102,8 +101,8 @@ describe("createProgram", () => {
       await program.parseAsync([dir], { from: "user" });
       expect(exitCode).toBeUndefined();
       const text = stdout();
-      expect(text).toContain("1 reglas");
-      expect(text).toContain("revisar");
+      expect(text).toContain("1 rules");
+      expect(text).toContain("review");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -116,10 +115,10 @@ describe("createProgram", () => {
     expect(exitCode).toBe(1);
     const text = stdout();
     expect(text).toContain("score  64/100");
-    expect(text).toContain("6 reglas");
-    expect(text).toContain("ruta no encontrada: src/no-existo/");
-    expect(text).toContain("script no encontrado: compilar");
-    expect(text).toContain("dependencia no encontrada: no-such-pkg");
+    expect(text).toContain("6 rules");
+    expect(text).toContain("path not found: src/no-existo/");
+    expect(text).toContain("script not found: compilar");
+    expect(text).toContain("dependency not found: no-such-pkg");
     expect(text).toMatch(/10\s+✖/);
     expect(text).toMatch(/10\s+⚠/);
   });
@@ -132,10 +131,10 @@ describe("createProgram", () => {
     expect(logs[0]).not.toMatch(/\x1B/);
     const parsed = JSON.parse(logs[0] ?? "") as {
       score: number;
-      reglas: { n: number };
+      rules: { count: number };
     };
     expect(parsed.score).toBe(79);
-    expect(parsed.reglas.n).toBe(8);
+    expect(parsed.rules.count).toBe(8);
   });
 
   it("prints parseable JSON and exits 1 for freshness-repo --json", async () => {

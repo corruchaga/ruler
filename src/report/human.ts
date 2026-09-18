@@ -11,13 +11,13 @@ import {
 
 const ICON: Record<Severity, string> = {
   error: "✖",
-  aviso: "⚠",
+  warning: "⚠",
   info: "ℹ",
 };
 
 export type VisibleFindings = {
   visible: Finding[];
-  omittedAviso: number;
+  omittedWarning: number;
   omittedInfo: number;
 };
 
@@ -33,7 +33,7 @@ export function selectVisibleFindings(
   const visible = [...errors, ...shownRest].sort(compareFindings);
   return {
     visible,
-    omittedAviso: omitted.filter((item) => item.severity === "aviso").length,
+    omittedWarning: omitted.filter((item) => item.severity === "warning").length,
     omittedInfo: omitted.filter((item) => item.severity === "info").length,
   };
 }
@@ -48,11 +48,11 @@ function scoreColor(score: number): (text: string) => string {
   return pc.red;
 }
 
-function noiseColor(porcentaje: number): (text: string) => string {
-  if (porcentaje >= 50) {
+function noiseColor(percent: number): (text: string) => string {
+  if (percent >= 50) {
     return pc.red;
   }
-  if (porcentaje >= 30) {
+  if (percent >= 30) {
     return pc.yellow;
   }
   return pc.green;
@@ -62,7 +62,7 @@ function severityColor(severity: Severity): (text: string) => string {
   if (severity === "error") {
     return pc.red;
   }
-  if (severity === "aviso") {
+  if (severity === "warning") {
     return pc.yellow;
   }
   return pc.dim;
@@ -77,10 +77,10 @@ function formatRow(item: Finding): string {
   return severityColor(item.severity)(text);
 }
 
-function omissionLine(omittedAviso: number, omittedInfo: number): string | null {
+function omissionLine(omittedWarning: number, omittedInfo: number): string | null {
   const parts: string[] = [];
-  if (omittedAviso > 0) {
-    parts.push(`+${omittedAviso} avisos`);
+  if (omittedWarning > 0) {
+    parts.push(`+${omittedWarning} warnings`);
   }
   if (omittedInfo > 0) {
     parts.push(`+${omittedInfo} infos`);
@@ -88,23 +88,23 @@ function omissionLine(omittedAviso: number, omittedInfo: number): string | null 
   if (parts.length === 0) {
     return null;
   }
-  return `… ${parts.join(", ")} no mostrados`;
+  return `… ${parts.join(", ")} not shown`;
 }
 
 export function renderHuman(report: Report): string {
   const paint = scoreColor(report.score);
   const nErr = report.freshness.findings.length;
   const freshnessLabel =
-    nErr === 0 ? pc.green("freshness OK") : pc.red(`freshness ${nErr} errores`);
-  const ahorro = report.tokens.totales - report.tokens.utiles;
-  const noise = noiseColor(report.tokens.porcentajeRuido);
-  const { visible, omittedAviso, omittedInfo } = selectVisibleFindings(report.findings);
+    nErr === 0 ? pc.green("freshness OK") : pc.red(`freshness ${nErr} errors`);
+  const wasted = report.tokens.total - report.tokens.useful;
+  const noise = noiseColor(report.tokens.noisePercent);
+  const { visible, omittedWarning, omittedInfo } = selectVisibleFindings(report.findings);
   const counts = report.findings.reduce(
     (acc, item) => {
       acc[item.severity] += 1;
       return acc;
     },
-    { error: 0, aviso: 0, info: 0 },
+    { error: 0, warning: 0, info: 0 },
   );
 
   const lines = [
@@ -112,9 +112,9 @@ export function renderHuman(report: Report): string {
     pc.dim(report.target),
     "",
     `score  ${paint(pc.bold(String(report.score)))}${pc.dim("/100")}`,
-    `${report.reglas.n} reglas · avg ${report.reglas.avg.toFixed(1)}/10 · ${freshnessLabel}`,
+    `${report.rules.count} rules · avg ${report.rules.avg.toFixed(1)}/10 · ${freshnessLabel}`,
     noise(
-      `ruido ${report.tokens.porcentajeRuido}% · ~${ahorro} tokens ahorrables (${report.tokens.utiles}/${report.tokens.totales})`,
+      `noise ${report.tokens.noisePercent}% · ~${wasted} wasted tokens (${report.tokens.useful}/${report.tokens.total})`,
     ),
     "",
   ];
@@ -127,9 +127,9 @@ export function renderHuman(report: Report): string {
   }
 
   lines.push(
-    `${pc.red("✖")} ${counts.error}   ${pc.yellow("⚠")} ${counts.aviso}   ${pc.dim("ℹ")} ${counts.info}`,
+    `${pc.red("✖")} ${counts.error}   ${pc.yellow("⚠")} ${counts.warning}   ${pc.dim("ℹ")} ${counts.info}`,
   );
-  const omitted = omissionLine(omittedAviso, omittedInfo);
+  const omitted = omissionLine(omittedWarning, omittedInfo);
   if (omitted) {
     lines.push(pc.dim(omitted));
   }

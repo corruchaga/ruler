@@ -577,6 +577,6 @@ export function formatFreshness(findings: readonly FreshnessFinding[]): string[]
   }
   return findings.map(
     (item) =>
-      `line ${item.line} [FRESHNESS]: ${item.kind} - ${item.value} no encontrada (${item.lookedIn})`,
+      `line ${item.line} [FRESHNESS]: ${item.kind} - ${item.value} not found (${item.lookedIn})`,
   );
 }

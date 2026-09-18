@@ -68,7 +68,7 @@ describe("globalScore", () => {
     expect(globalScore(0, [], 0, 0)).toBe(40);
   });
 
-  it("clamps ruido outside 0–100", () => {
+  it("clamps noise percent outside 0–100", () => {
     expect(globalScore(1, [10], -10, 0)).toBe(100);
     expect(globalScore(1, [10], 200, 0)).toBe(60);
   });
@@ -102,31 +102,31 @@ describe("buildReport", () => {
     const report = reportFrom("agents-bueno.md");
     expect(report.version).toBe("0.1.0");
     expect(report.score).toBe(79);
-    expect(report.reglas).toEqual({ n: 8, avg: 6.8 });
-    expect(report.tokens).toEqual({ totales: 92, utiles: 87, porcentajeRuido: 5 });
+    expect(report.rules).toEqual({ count: 8, avg: 6.8 });
+    expect(report.tokens).toEqual({ total: 92, useful: 87, noisePercent: 5 });
     expect(report.freshness.findings).toEqual([]);
     expect(report.findings.map((item) => [item.line, item.severity, item.category])).toEqual([
       [1, "info", "noise"],
-      [7, "aviso", "scoring"],
-      [11, "aviso", "scoring"],
+      [7, "warning", "scoring"],
+      [11, "warning", "scoring"],
     ]);
-    expect(report.findings[0]?.message).toBe("documentación — Project Agents");
-    expect(report.findings[1]?.message).toBe("revisar");
-    expect(report.findings[2]?.message).toBe("revisar");
+    expect(report.findings[0]?.message).toBe("documentation — Project Agents");
+    expect(report.findings[1]?.message).toBe("review");
+    expect(report.findings[2]?.message).toBe("review");
   });
 
   it("locks empty file at score 0 with no findings", () => {
     const report = reportFrom("agents-vacio.md");
     expect(report.score).toBe(0);
-    expect(report.reglas).toEqual({ n: 0, avg: 0 });
-    expect(report.tokens.porcentajeRuido).toBe(100);
+    expect(report.rules).toEqual({ count: 0, avg: 0 });
+    expect(report.tokens.noisePercent).toBe(100);
     expect(report.findings).toEqual([]);
   });
 
   it("locks motivational fixture at score 0", () => {
     const report = reportFrom("agents-motivacional.md");
     expect(report.score).toBe(0);
-    expect(report.reglas.n).toBe(0);
+    expect(report.rules.count).toBe(0);
     expect(report.findings.every((item) => item.severity === "info")).toBe(true);
     expect(report.findings.length).toBeGreaterThan(0);
   });
@@ -135,11 +135,16 @@ describe("buildReport", () => {
     const dir = resolve("test/fixtures/freshness-repo");
     const report = reportFrom("freshness-repo/AGENTS.md", dir);
     expect(report.score).toBe(64);
-    expect(report.reglas.n).toBe(6);
-    expect(report.reglas.avg).toBe(7.3);
+    expect(report.rules.count).toBe(6);
+    expect(report.rules.avg).toBe(7.3);
     expect(report.freshness.findings).toHaveLength(3);
+    expect(report.freshness.findings.map((item) => item.kind)).toEqual([
+      "path",
+      "script",
+      "dependency",
+    ]);
     const line10 = report.findings.filter((item) => item.line === 10);
-    expect(line10.map((item) => item.severity)).toEqual(["error", "aviso"]);
+    expect(line10.map((item) => item.severity)).toEqual(["error", "warning"]);
     expect(line10[0]?.category).toBe("freshness");
     expect(line10[1]?.category).toBe("scoring");
   });
@@ -149,11 +154,10 @@ describe("buildReport", () => {
     const stack = report.findings.find(
       (item) => item.severity === "info" && item.message.includes("Stack"),
     );
-    const aviso = report.findings.find((item) => item.severity === "aviso");
+    const warning = report.findings.find((item) => item.severity === "warning");
     expect(stack).toBeDefined();
-    expect(aviso).toBeDefined();
-    expect(stack?.line).toBeLessThan(aviso?.line ?? 0);
-    expect(aviso?.score).toBeUndefined();
+    expect(warning).toBeDefined();
+    expect(stack?.line).toBeLessThan(warning?.line ?? 0);
     const scoredLow = report.findings.filter((item) => item.category === "scoring");
     expect(scoredLow).toHaveLength(1);
   });
@@ -161,8 +165,8 @@ describe("buildReport", () => {
   it("raises score when a bad rule is replaced by a checkable one", () => {
     const baja = reportFrom("agents-score-baja.md");
     const alta = reportFrom("agents-score-alta.md");
-    expect(baja.reglas.n).toBe(1);
-    expect(alta.reglas.n).toBe(1);
+    expect(baja.rules.count).toBe(1);
+    expect(alta.rules.count).toBe(1);
     expect(baja.score).toBeLessThanOrEqual(58);
     expect(alta.score).toBe(100);
     expect(alta.score).toBeGreaterThan(baja.score);
@@ -170,8 +174,8 @@ describe("buildReport", () => {
 
   it("only flags rules at or below the review threshold", () => {
     const report = reportFrom("agents-bueno.md");
-    const avisos = report.findings.filter((item) => item.category === "scoring");
+    const warnings = report.findings.filter((item) => item.category === "scoring");
     expect(REVIEW_SCORE_MAX).toBe(3);
-    expect(avisos).toHaveLength(2);
+    expect(warnings).toHaveLength(2);
   });
 });

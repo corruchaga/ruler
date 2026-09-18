@@ -10,6 +10,14 @@
   "bin": {
     "ruler": "./dist/cli.js"
   },
+  "main": "./dist/cli.js",
+  "exports": {
+    ".": "./dist/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/<usuario>/ruler"
+  },
   "files": [
     "dist"
   ],

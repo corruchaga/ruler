@@ -5,12 +5,12 @@ exports[`renderHuman > matches snapshot for agents-bueno.md 1`] = `
 C:\\Proyectos\\rulerlint\\test\\fixtures\\agents-bueno.md
 
 score  79/100
-8 reglas · avg 6.8/10 · freshness OK
-ruido 5% · ~5 tokens ahorrables (87/92)
+8 rules · avg 6.8/10 · freshness OK
+noise 5% · ~5 wasted tokens (87/92)
 
-   1  ℹ  documentación — Project Agents
-   7  ⚠  revisar  no_checkable
-  11  ⚠  revisar  no_checkable
+   1  ℹ  documentation — Project Agents
+   7  ⚠  review  no_checkable
+  11  ⚠  review  no_checkable
 
 ✖ 0   ⚠ 2   ℹ 1"
 `;
@@ -20,8 +20,8 @@ exports[`renderHuman > matches snapshot for agents-vacio.md 1`] = `
 C:\\Proyectos\\rulerlint\\test\\fixtures\\agents-vacio.md
 
 score  0/100
-0 reglas · avg 0.0/10 · freshness OK
-ruido 100% · ~0 tokens ahorrables (0/0)
+0 rules · avg 0.0/10 · freshness OK
+noise 100% · ~0 wasted tokens (0/0)
 
 ✖ 0   ⚠ 0   ℹ 0"
 `;
@@ -31,15 +31,15 @@ exports[`renderHuman > matches snapshot for freshness-repo 1`] = `
 C:\\Proyectos\\rulerlint\\test\\fixtures\\freshness-repo\\AGENTS.md
 
 score  64/100
-6 reglas · avg 7.3/10 · freshness 3 errores
-ruido 6% · ~3 tokens ahorrables (52/55)
+6 rules · avg 7.3/10 · freshness 3 errors
+noise 6% · ~3 wasted tokens (52/55)
 
-   1  ℹ  documentación — Mini repo
-   7  ⚠  revisar  no_checkable
-   8  ✖  ruta no encontrada: src/no-existo/  C:\\Proyectos\\rulerlint\\test…
-   9  ✖  script no encontrado: compilar  package.json scripts
-  10  ✖  dependencia no encontrada: no-such-pkg  package.json dependenci…
-  10  ⚠  revisar  no_checkable
+   1  ℹ  documentation — Mini repo
+   7  ⚠  review  no_checkable
+   8  ✖  path not found: src/no-existo/  C:\\Proyectos\\rulerlint\\test\\fix…
+   9  ✖  script not found: compilar  package.json scripts
+  10  ✖  dependency not found: no-such-pkg  package.json dependencies/de…
+  10  ⚠  review  no_checkable
 
 ✖ 3   ⚠ 2   ℹ 1"
 `;

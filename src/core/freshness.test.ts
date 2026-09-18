@@ -243,7 +243,7 @@ describe("checkFreshness", () => {
         },
       ]),
     ).toEqual([
-      "line 4 [FRESHNESS]: ruta - src/no-existo/ no encontrada (C:\\tmp\\src\\no-existo\\)",
+      "line 4 [FRESHNESS]: ruta - src/no-existo/ not found (C:\\tmp\\src\\no-existo\\)",
     ]);
   });
 });

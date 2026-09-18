@@ -11,8 +11,9 @@ export const REVIEW_SCORE_MAX = 3;
 export const HUMAN_FINDING_CAP = 15;
 export const SNIPPET_MAX = 72;
 
-export type Severity = "error" | "aviso" | "info";
+export type Severity = "error" | "warning" | "info";
 export type FindingCategory = "freshness" | "scoring" | "noise";
+export type FreshnessKindOut = "path" | "script" | "dependency";
 
 export type Finding = {
   line: number;
@@ -36,30 +37,43 @@ export type ReportInput = {
   noise: NoiseReport;
 };
 
+export type FreshnessFindingOut = {
+  kind: FreshnessKindOut;
+  value: string;
+  line: number;
+  lookedIn: string;
+};
+
 export type Report = {
   version: string;
   target: string;
   score: number;
-  reglas: { n: number; avg: number };
+  rules: { count: number; avg: number };
   tokens: {
-    totales: number;
-    utiles: number;
-    porcentajeRuido: number;
+    total: number;
+    useful: number;
+    noisePercent: number;
   };
-  freshness: { findings: FreshnessFinding[] };
+  freshness: { findings: FreshnessFindingOut[] };
   findings: Finding[];
 };
 
 const SEVERITY_RANK: Record<Severity, number> = {
   error: 0,
-  aviso: 1,
+  warning: 1,
   info: 2,
 };
 
+const FRESHNESS_KIND_OUT: Record<FreshnessKind, FreshnessKindOut> = {
+  ruta: "path",
+  script: "script",
+  dependencia: "dependency",
+};
+
 const FRESHNESS_MESSAGE: Record<FreshnessKind, string> = {
-  ruta: "ruta no encontrada",
-  script: "script no encontrado",
-  dependencia: "dependencia no encontrada",
+  ruta: "path not found",
+  script: "script not found",
+  dependencia: "dependency not found",
 };
 
 type ParsedSignal = {
@@ -134,12 +148,12 @@ export function pickSnippet(signals: readonly string[], text: string): string {
 export function globalScore(
   n: number,
   scores: readonly number[],
-  porcentajeRuido: number,
+  noisePercent: number,
   freshnessCount: number,
 ): number {
   const avg = averageScore(scores);
   const v = n === 0 ? 0 : clamp(avg, 0, 10) / 10;
-  const u = (100 - clamp(porcentajeRuido, 0, 100)) / 100;
+  const u = (100 - clamp(noisePercent, 0, 100)) / 100;
   const base = 100 * (W_V * v + W_U * u);
   const pen = Math.min(P_CAP, P_F * freshnessCount);
   return clamp(Math.round(base - pen), 0, 100);
@@ -147,6 +161,15 @@ export function globalScore(
 
 function freshnessMessage(kind: FreshnessKind, value: string): string {
   return `${FRESHNESS_MESSAGE[kind]}: ${value}`;
+}
+
+function mapFreshnessFinding(item: FreshnessFinding): FreshnessFindingOut {
+  return {
+    kind: FRESHNESS_KIND_OUT[item.kind],
+    value: item.value,
+    line: item.line,
+    lookedIn: item.lookedIn,
+  };
 }
 
 export function compareFindings(a: Finding, b: Finding): number {
@@ -187,9 +210,9 @@ export function buildReport(input: ReportInput): Report {
     }
     findings.push({
       line: item.line,
-      severity: "aviso",
+      severity: "warning",
       category: "scoring",
-      message: "revisar",
+      message: "review",
       snippet: pickSnippet(item.signals, item.text),
     });
   }
@@ -202,7 +225,7 @@ export function buildReport(input: ReportInput): Report {
       line: section.line,
       severity: "info",
       category: "noise",
-      message: `documentación — ${section.title || "(preámbulo)"}`,
+      message: `documentation — ${section.title || "(preamble)"}`,
     });
   }
 
@@ -212,16 +235,16 @@ export function buildReport(input: ReportInput): Report {
     version: TOOL_VERSION,
     target: input.target,
     score: globalScore(n, scores, input.noise.porcentajeRuido, input.freshness.findings.length),
-    reglas: {
-      n,
+    rules: {
+      count: n,
       avg: round1(averageScore(scores)),
     },
     tokens: {
-      totales: input.noise.tokensTotales,
-      utiles: input.noise.tokensUtiles,
-      porcentajeRuido: input.noise.porcentajeRuido,
+      total: input.noise.tokensTotales,
+      useful: input.noise.tokensUtiles,
+      noisePercent: input.noise.porcentajeRuido,
     },
-    freshness: { findings: input.freshness.findings },
+    freshness: { findings: input.freshness.findings.map(mapFreshnessFinding) },
     findings,
   };
 }

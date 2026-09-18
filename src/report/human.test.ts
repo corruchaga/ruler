@@ -35,23 +35,25 @@ function finding(over: Partial<Finding> & Pick<Finding, "line" | "severity" | "c
   };
 }
 
+const UI_SPANISH = /reglas|ruido|avisos|revisar|documentación|encontrad|ahorrables|mostrados/i;
+
 describe("selectVisibleFindings", () => {
   it("always keeps errors and caps the rest", () => {
     const findings: Finding[] = [
       finding({ line: 1, severity: "info", category: "noise" }),
-      finding({ line: 2, severity: "aviso", category: "scoring" }),
+      finding({ line: 2, severity: "warning", category: "scoring" }),
       finding({ line: 3, severity: "error", category: "freshness" }),
     ];
     const many = [
       ...findings,
       ...Array.from({ length: 20 }, (_, i) =>
-        finding({ line: 10 + i, severity: "aviso", category: "scoring" }),
+        finding({ line: 10 + i, severity: "warning", category: "scoring" }),
       ),
     ];
-    const { visible, omittedAviso, omittedInfo } = selectVisibleFindings(many, 5);
+    const { visible, omittedWarning, omittedInfo } = selectVisibleFindings(many, 5);
     expect(visible.some((item) => item.severity === "error")).toBe(true);
     expect(visible).toHaveLength(5);
-    expect(omittedAviso).toBeGreaterThan(0);
+    expect(omittedWarning).toBeGreaterThan(0);
     expect(omittedInfo).toBe(0);
   });
 });
@@ -70,40 +72,40 @@ describe("renderHuman", () => {
     expect(stripAnsi(renderHuman(reportFrom("freshness-repo/AGENTS.md", dir)))).toMatchSnapshot();
   });
 
-  it("contains grouped line 10 error and aviso for freshness-repo", () => {
+  it("contains grouped line 10 error and warning for freshness-repo", () => {
     const dir = resolve("test/fixtures/freshness-repo");
     const text = stripAnsi(renderHuman(reportFrom("freshness-repo/AGENTS.md", dir)));
     const rows = text.split("\n").filter((line) => /^\s*10\s+/.test(line));
     expect(rows.some((line) => line.includes("✖"))).toBe(true);
-    expect(rows.some((line) => line.includes("⚠") && line.includes("revisar"))).toBe(true);
+    expect(rows.some((line) => line.includes("⚠") && line.includes("review"))).toBe(true);
   });
 
   it("shows noise heading and low-score item for agents-capas.md", () => {
     const text = stripAnsi(renderHuman(reportFrom("agents-capas.md")));
-    expect(text).toMatch(/ℹ {2}documentación — Stack/);
-    expect(text).toMatch(/⚠ {2}revisar/);
+    expect(text).toMatch(/ℹ {2}documentation — Stack/);
+    expect(text).toMatch(/⚠ {2}review/);
   });
 
   it("prints omission only for categories actually omitted", () => {
     const findings: Finding[] = Array.from({ length: HUMAN_FINDING_CAP + 5 }, (_, i) =>
       finding({
         line: i + 1,
-        severity: "aviso",
+        severity: "warning",
         category: "scoring",
-        message: "revisar",
+        message: "review",
       }),
     );
     const report: Report = {
       version: "0.1.0",
       target: "x.md",
       score: 40,
-      reglas: { n: 20, avg: 2 },
-      tokens: { totales: 10, utiles: 10, porcentajeRuido: 0 },
+      rules: { count: 20, avg: 2 },
+      tokens: { total: 10, useful: 10, noisePercent: 0 },
       freshness: { findings: [] },
       findings,
     };
     const text = stripAnsi(renderHuman(report));
-    expect(text).toContain("… +5 avisos no mostrados");
+    expect(text).toContain("… +5 warnings not shown");
     expect(text).not.toContain("infos");
   });
 
@@ -112,7 +114,12 @@ describe("renderHuman", () => {
     expect(raw).toMatch(/\x1B/);
     const plain = stripAnsi(raw);
     expect(plain).toContain("score  79/100");
-    expect(plain).toContain("8 reglas · avg 6.8/10 · freshness OK");
+    expect(plain).toContain("8 rules · avg 6.8/10 · freshness OK");
     expect(plain).not.toContain("line 5 [9/10]");
+  });
+
+  it("uses English chrome on agents-bueno.md", () => {
+    const plain = stripAnsi(renderHuman(reportFrom("agents-bueno.md")));
+    expect(plain).not.toMatch(UI_SPANISH);
   });
 });

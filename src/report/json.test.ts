@@ -35,18 +35,20 @@ describe("renderJson", () => {
       "version",
       "target",
       "score",
-      "reglas",
+      "rules",
       "tokens",
       "freshness",
       "findings",
     ]);
     const body = parsed as {
       score: number;
-      reglas: { n: number; avg: number };
+      rules: { count: number; avg: number };
+      tokens: { total: number; useful: number; noisePercent: number };
       findings: { snippet?: string }[];
     };
     expect(body.score).toBe(79);
-    expect(body.reglas).toEqual({ n: 8, avg: 6.8 });
+    expect(body.rules).toEqual({ count: 8, avg: 6.8 });
+    expect(body.tokens).toEqual({ total: 92, useful: 87, noisePercent: 5 });
     const info = body.findings.find((item) => !("snippet" in item));
     expect(info).toBeDefined();
   });
@@ -57,15 +59,20 @@ describe("renderJson", () => {
     expect(raw).not.toMatch(/\x1B/);
     const parsed = JSON.parse(raw) as {
       score: number;
-      freshness: { findings: unknown[] };
+      freshness: { findings: { kind: string }[] };
       findings: { line: number; severity: string }[];
     };
     expect(parsed.score).toBe(64);
     expect(parsed.freshness.findings).toHaveLength(3);
+    expect(parsed.freshness.findings.map((item) => item.kind)).toEqual([
+      "path",
+      "script",
+      "dependency",
+    ]);
     expect(parsed.findings.some((item) => item.line === 10 && item.severity === "error")).toBe(
       true,
     );
-    expect(parsed.findings.some((item) => item.line === 10 && item.severity === "aviso")).toBe(
+    expect(parsed.findings.some((item) => item.line === 10 && item.severity === "warning")).toBe(
       true,
     );
   });
