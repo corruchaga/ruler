@@ -71,9 +71,8 @@ function severityColor(severity: Severity): (text: string) => string {
 function formatRow(item: Finding): string {
   const icon = ICON[item.severity];
   const snippet = item.snippet ? `  ${item.snippet}` : "";
-  const text = truncateSnippet(
-    `${String(item.line).padStart(4, " ")}  ${icon}  ${item.message}${snippet}`,
-  );
+  const raw = `${String(item.line).padStart(4, " ")}  ${icon}  ${item.message}${snippet}`;
+  const text = item.category === "judge" ? raw : truncateSnippet(raw);
   return severityColor(item.severity)(text);
 }
 

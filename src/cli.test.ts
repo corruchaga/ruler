@@ -40,8 +40,19 @@ describe("createProgram", () => {
     return logs.join("\n");
   }
 
-  function isolatedIo(env: NodeJS.ProcessEnv = {}) {
-    return { env, homedir: () => join(tmpdir(), "rulerlint-no-home") };
+  function isolatedIo(env: NodeJS.ProcessEnv = {}, fetchImpl?: typeof fetch) {
+    return { env, homedir: () => join(tmpdir(), "rulerlint-no-home"), fetch: fetchImpl };
+  }
+
+  function chatResponse(content: string, status = 200): Response {
+    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  function emptyJudgeFetch() {
+    return vi.fn(async () => chatResponse("[]"));
   }
 
   it("prints a red error and exits 1 when path is missing", async () => {
@@ -172,20 +183,24 @@ describe("createProgram", () => {
     expect(err).toContain("Supported providers: openrouter, deepseek.");
   });
 
-  it("prints the human report plus the judge-ready line when --judge has a fake key", async () => {
-    const program = createProgram(isolatedIo({ RULER_API_KEY: "sk-fake" }));
+  it("prints the human report plus the no-contradictions line when --judge has a fake key", async () => {
+    const program = createProgram(
+      isolatedIo({ RULER_API_KEY: "sk-fake" }, emptyJudgeFetch()),
+    );
     await program.parseAsync([bueno, "--judge"], { from: "user" });
     expect(exitCode).toBeUndefined();
     const text = stdout();
     expect(text).toContain("score  79/100");
     expect(text).toContain("8 rules · avg 6.8/10 · freshness OK");
-    expect(text).toMatch(/\n\njudge {2}ready \(no semantic checks yet\)$/);
+    expect(text).toMatch(/\n\njudge {2}no contradictions found$/);
     expect(text).not.toContain("sk-fake");
     expect(stripAnsi(errors.join("\n"))).not.toContain("sk-fake");
   });
 
-  it("keeps JSON stdout intact and writes the judge note to stderr with --json --judge", async () => {
-    const program = createProgram(isolatedIo({ RULER_API_KEY: "sk-fake" }));
+  it("keeps JSON stdout intact and writes no judge status on --json --judge success", async () => {
+    const program = createProgram(
+      isolatedIo({ RULER_API_KEY: "sk-fake" }, emptyJudgeFetch()),
+    );
     await program.parseAsync([bueno, "--json", "--judge"], { from: "user" });
     expect(exitCode).toBeUndefined();
     expect(logs).toHaveLength(1);
@@ -199,7 +214,7 @@ describe("createProgram", () => {
     expect(parsed.rules.count).toBe(8);
     expect(parsed.apiKey).toBeUndefined();
     expect(logs[0]).not.toContain("sk-fake");
-    expect(stripAnsi(errors.join("\n"))).toMatch(/judge {2}ready \(no semantic checks yet\)/);
+    expect(stripAnsi(errors.join("\n"))).not.toMatch(/judge {2}/);
     expect(stripAnsi(errors.join("\n"))).not.toContain("sk-fake");
   });
 
@@ -240,7 +255,9 @@ describe("createProgram", () => {
 
   it("exits 1 not 2 for freshness errors when --judge config resolves", async () => {
     const repo = resolve("test/fixtures/freshness-repo");
-    const program = createProgram(isolatedIo({ RULER_API_KEY: "sk-fake" }));
+    const program = createProgram(
+      isolatedIo({ RULER_API_KEY: "sk-fake" }, emptyJudgeFetch()),
+    );
     await expect(program.parseAsync([repo, "--judge"], { from: "user" })).rejects.toThrow(
       "exit:1",
     );
@@ -248,7 +265,7 @@ describe("createProgram", () => {
     const text = stdout();
     expect(text).toContain("score  64/100");
     expect(text).toContain("path not found: src/no-existo/");
-    expect(text).toMatch(/judge {2}ready \(no semantic checks yet\)/);
+    expect(text).toMatch(/judge {2}no contradictions found/);
   });
 
   it("includes --judge in help text", () => {
@@ -256,5 +273,173 @@ describe("createProgram", () => {
     const help = program.helpInformation();
     expect(help).toMatch(/--judge/);
     expect(help).toMatch(/Enable LLM judge \(requires API key\)/);
+  });
+
+  it("retries once on broken JSON then succeeds", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(chatResponse("not json"))
+      .mockResolvedValueOnce(chatResponse("[]"));
+    const program = createProgram(isolatedIo({ RULER_API_KEY: "sk-fake" }, fetchImpl));
+    await program.parseAsync([bueno, "--judge"], { from: "user" });
+    expect(exitCode).toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const secondBody = JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body)) as {
+      messages: { content: string }[];
+    };
+    expect(secondBody.messages.at(-1)?.content).toBe("respond ONLY with the JSON array");
+    expect(stdout()).toMatch(/judge {2}no contradictions found/);
+  });
+
+  it("degrades after two broken JSON responses without changing the exit code", async () => {
+    const fetchImpl = vi.fn(async () => chatResponse("not json"));
+    const program = createProgram(isolatedIo({ RULER_API_KEY: "sk-fake" }, fetchImpl));
+    await program.parseAsync([bueno, "--judge"], { from: "user" });
+    expect(exitCode).toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const text = stdout();
+    expect(text).toContain("score  79/100");
+    expect(text).toMatch(
+      /judge {2}unavailable \(invalid response\), deterministic results unaffected$/,
+    );
+    expect(text).not.toContain("contradiction with line");
+  });
+
+  it("degrades on HTTP 401 without leaking the key", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: "invalid api key sk-fake" }), { status: 401 }),
+    );
+    const program = createProgram(isolatedIo({ RULER_API_KEY: "sk-fake" }, fetchImpl));
+    await program.parseAsync([bueno, "--judge"], { from: "user" });
+    expect(exitCode).toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const text = stdout();
+    expect(text).toContain("score  79/100");
+    expect(text).toMatch(
+      /judge {2}unavailable \(http 401\), deterministic results unaffected/,
+    );
+    expect(text).not.toContain("sk-fake");
+    expect(stripAnsi(errors.join("\n"))).not.toContain("sk-fake");
+  });
+
+  it("never calls fetch without --judge", async () => {
+    const fetchImpl = vi.fn(async () => chatResponse("[]"));
+    const program = createProgram({ fetch: fetchImpl });
+    await program.parseAsync([bueno], { from: "user" });
+    expect(exitCode).toBeUndefined();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(stdout()).not.toMatch(/judge {2}/);
+  });
+
+  it("does not call fetch when there are no rule-section rules", async () => {
+    const fetchImpl = emptyJudgeFetch();
+    const program = createProgram(isolatedIo({ RULER_API_KEY: "sk-fake" }, fetchImpl));
+    await program.parseAsync([vacio, "--judge"], { from: "user" });
+    expect(exitCode).toBeUndefined();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(stdout()).toMatch(/judge {2}no contradictions found/);
+  });
+
+  it("prints parseable JSON with category judge and keeps the score", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ruler-"));
+    try {
+      writeFileSync(
+        join(dir, "AGENTS.md"),
+        "# Rules\n- Always ask for confirmation before deleting anything\n- Batch deletes run without any confirmation\n",
+      );
+      const fetchImpl = vi.fn(async () =>
+        chatResponse(
+          JSON.stringify([
+            {
+              lineA: 2,
+              lineB: 3,
+              explanation: "one requires confirmation, the other skips it",
+            },
+          ]),
+        ),
+      );
+      const program = createProgram(isolatedIo({ RULER_API_KEY: "sk-fake" }, fetchImpl));
+      await program.parseAsync([dir, "--json", "--judge"], { from: "user" });
+      expect(exitCode).toBeUndefined();
+      expect(logs).toHaveLength(1);
+      const parsed = JSON.parse(logs[0] ?? "") as {
+        score: number;
+        findings: {
+          line: number;
+          severity: string;
+          category: string;
+          message: string;
+          snippet?: string;
+        }[];
+      };
+      const judgeHits = parsed.findings.filter((item) => item.category === "judge");
+      expect(judgeHits).toEqual([
+        {
+          line: 2,
+          severity: "warning",
+          category: "judge",
+          message: "contradiction with line 3: one requires confirmation, the other skips it",
+        },
+      ]);
+      const withoutJudge = createProgram(isolatedIo());
+      logs.length = 0;
+      await withoutJudge.parseAsync([dir, "--json"], { from: "user" });
+      const baseline = JSON.parse(logs[0] ?? "") as { score: number };
+      expect(parsed.score).toBe(baseline.score);
+      expect(stripAnsi(errors.join("\n"))).not.toContain("sk-fake");
+      expect(logs[0]).not.toContain("sk-fake");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("warns when the judge analyzes a prefix of the rules", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ruler-"));
+    try {
+      const bullets = Array.from({ length: 120 }, (_, i) => {
+        const n = String(i).padStart(3, "0");
+        return `- Always validate input field field${n} against the schema before saving to disk`;
+      });
+      writeFileSync(join(dir, "AGENTS.md"), `# Rules\n${bullets.join("\n")}\n`);
+      const fetchImpl = emptyJudgeFetch();
+      const program = createProgram(isolatedIo({ RULER_API_KEY: "sk-fake" }, fetchImpl));
+      await program.parseAsync([dir, "--judge"], { from: "user" });
+      expect(exitCode).toBeUndefined();
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      const userContent = (
+        JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)) as {
+          messages: { content: string }[];
+        }
+      ).messages[1]?.content;
+      expect(userContent).toContain("field000");
+      expect(userContent).not.toContain("field119");
+      expect(stdout()).toMatch(/judge {2}analyzed first \d+ of 120 rules/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("writes the cap line to stderr on --json --judge", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ruler-"));
+    try {
+      const bullets = Array.from({ length: 120 }, (_, i) => {
+        const n = String(i).padStart(3, "0");
+        return `- Always validate input field field${n} against the schema before saving to disk`;
+      });
+      writeFileSync(join(dir, "AGENTS.md"), `# Rules\n${bullets.join("\n")}\n`);
+      const program = createProgram(
+        isolatedIo({ RULER_API_KEY: "sk-fake" }, emptyJudgeFetch()),
+      );
+      await program.parseAsync([dir, "--json", "--judge"], { from: "user" });
+      expect(exitCode).toBeUndefined();
+      expect(logs).toHaveLength(1);
+      JSON.parse(logs[0] ?? "");
+      expect(stripAnsi(errors.join("\n"))).toMatch(
+        /judge {2}analyzed first \d+ of 120 rules/,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

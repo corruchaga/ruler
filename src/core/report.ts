@@ -12,7 +12,7 @@ export const HUMAN_FINDING_CAP = 15;
 export const SNIPPET_MAX = 72;
 
 export type Severity = "error" | "warning" | "info";
-export type FindingCategory = "freshness" | "scoring" | "noise";
+export type FindingCategory = "freshness" | "scoring" | "noise" | "judge";
 export type FreshnessKindOut = "path" | "script" | "dependency";
 
 export type Finding = {

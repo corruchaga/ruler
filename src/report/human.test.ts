@@ -122,4 +122,18 @@ describe("renderHuman", () => {
     const plain = stripAnsi(renderHuman(reportFrom("agents-bueno.md")));
     expect(plain).not.toMatch(UI_SPANISH);
   });
+
+  it("does not run judge messages through the 72-char snippet cap", () => {
+    const report = reportFrom("agents-bueno.md");
+    const explanation = "x".repeat(150);
+    report.findings.push({
+      line: 5,
+      severity: "warning",
+      category: "judge",
+      message: `contradiction with line 12: ${explanation}`,
+    });
+    const plain = stripAnsi(renderHuman(report));
+    expect(plain).toContain(explanation);
+    expect(plain).toContain("contradiction with line 12:");
+  });
 });

@@ -23,7 +23,7 @@ npx rulerlint . --json
 - **Freshness**: paths, npm scripts, and dependencies checked against the real repo
 - **Noise / token cost**: documentation sections vs instruction sections
 - **`--json`**: machine-readable report on stdout
-- **`--judge`**: load LLM credentials (no API call yet)
+- **`--judge`**: optional LLM contradiction check (sends extracted rules only)
 - **Exit codes**: `1` on missing path / no instruction file / freshness errors; `2` on `--judge` with broken LLM config; `0` if only warnings or infos
 
 ## Dogfooding
@@ -71,7 +71,11 @@ npx rulerlint . --judge
 npx rulerlint . --json --judge
 ```
 
-`--judge` only resolves credentials. It does not call any LLM API in this version.
+With `--judge` and a valid key, `ruler` sends extracted rule texts (and line numbers) to the configured provider and reports contradictory or overlapping pairs. Deterministic scoring is unchanged.
+
+### Privacy
+
+`--judge` is the only mode that leaves the machine. It sends extracted rule texts and their line numbers to the configured provider (OpenRouter or DeepSeek) — never the raw file, never documentation sections, never your repository. Without `--judge`, ruler is fully local: no network, no env, no config files.
 
 ### Configuration
 
@@ -94,7 +98,7 @@ Supported providers: `openrouter` (default, model `openai/gpt-4o-mini`) and `dee
 
 ## Roadmap
 
-LLM semantic checks, SKILL.md lint, and a GitHub Action — not in this version.
+Rule rewrites, visible token cost, SKILL.md lint, and a GitHub Action — not in this version.
 
 ## License
 
