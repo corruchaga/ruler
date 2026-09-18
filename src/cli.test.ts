@@ -36,20 +36,22 @@ describe("createProgram", () => {
     vi.restoreAllMocks();
   });
 
+  function stdout(): string {
+    return logs.join("\n");
+  }
+
   it("prints a red error and exits 1 when path is missing", async () => {
     const program = createProgram();
-    await expect(program.parseAsync([], { from: "user" })).rejects.toThrow(
-      "exit:1",
-    );
+    await expect(program.parseAsync([], { from: "user" })).rejects.toThrow("exit:1");
     expect(exitCode).toBe(1);
     expect(errors.join("\n")).toMatch(/missing path/i);
   });
 
   it("prints a red error and exits 1 when path does not exist", async () => {
     const program = createProgram();
-    await expect(
-      program.parseAsync(["./carpeta-inexistente"], { from: "user" }),
-    ).rejects.toThrow("exit:1");
+    await expect(program.parseAsync(["./carpeta-inexistente"], { from: "user" })).rejects.toThrow(
+      "exit:1",
+    );
     expect(exitCode).toBe(1);
     expect(errors.join("\n")).toMatch(/path not found/i);
   });
@@ -58,51 +60,38 @@ describe("createProgram", () => {
     const dir = mkdtempSync(join(tmpdir(), "ruler-"));
     try {
       const program = createProgram();
-      await expect(program.parseAsync([dir], { from: "user" })).rejects.toThrow(
-        "exit:1",
-      );
+      await expect(program.parseAsync([dir], { from: "user" })).rejects.toThrow("exit:1");
       expect(exitCode).toBe(1);
-      expect(errors.join("\n")).toMatch(
-        /no AGENTS\.md or CLAUDE\.md found/i,
-      );
+      expect(errors.join("\n")).toMatch(/no AGENTS\.md or CLAUDE.md found/i);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("prints exactly 8 rules for agents-bueno.md", async () => {
+  it("prints the human report for agents-bueno.md without listing every rule", async () => {
     const program = createProgram();
     await program.parseAsync([bueno], { from: "user" });
     expect(exitCode).toBeUndefined();
-    expect(logs).toEqual([
-      "8 rules",
-      "line 5 [9/10]: Always use TypeScript strict mode in new files",
-      "line 6 [8/10]: Never commit secrets or API keys",
-      "line 7 [2/10]: Prefer small pull requests over large ones",
-      "line 11 [2/10]: Do not run destructive git commands",
-      "line 12 [10/10]: Never skip the test suite",
-      "line 14 [8/10]: Always write tests for new public APIs.",
-      "line 18 [7/10]: Keep functions under fifty lines",
-      "line 19 [8/10]: Name files in kebab-case",
-      "avg: 6.8/10",
-      "freshness: OK",
-      "noise: 5% (~87 útiles de 92 totales)",
-      "line 1 [RUIDO]: documentación — Project Agents",
-    ]);
+    const text = stdout();
+    expect(text).toContain("score  79/100");
+    expect(text).toContain("8 reglas · avg 6.8/10 · freshness OK");
+    expect(text).toContain("revisar");
+    expect(text).toMatch(/ℹ {2}documentación — Project Agents/);
+    expect(text).not.toContain("line 5 [9/10]");
+    expect(text).not.toContain("8 rules");
   });
 
-  it("prints 0 rules for an empty agents file", async () => {
+  it("prints score 0 for an empty agents file", async () => {
     const program = createProgram();
     await program.parseAsync([vacio], { from: "user" });
     expect(exitCode).toBeUndefined();
-    expect(logs).toEqual([
-      "0 rules",
-      "freshness: OK",
-      "noise: 100% (~0 útiles de 0 totales)",
-    ]);
+    const text = stdout();
+    expect(text).toContain("score  0/100");
+    expect(text).toContain("0 reglas");
+    expect(text).toContain("freshness OK");
   });
 
-  it("resolves AGENTS.md inside a directory and prints exact counts", async () => {
+  it("resolves AGENTS.md inside a directory", async () => {
     const dir = mkdtempSync(join(tmpdir(), "ruler-"));
     try {
       writeFileSync(
@@ -112,37 +101,56 @@ describe("createProgram", () => {
       const program = createProgram();
       await program.parseAsync([dir], { from: "user" });
       expect(exitCode).toBeUndefined();
-      expect(logs).toEqual([
-        "1 rules",
-        "line 1 [2/10]: Always keep directory resolution covered here.",
-        "avg: 2.0/10",
-        "freshness: OK",
-        "noise: 0% (~12 útiles de 12 totales)",
-      ]);
+      const text = stdout();
+      expect(text).toContain("1 reglas");
+      expect(text).toContain("revisar");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("prints freshness findings for the mini-repo fixture", async () => {
+  it("exits 1 and reports freshness findings for the mini-repo fixture", async () => {
     const repo = resolve("test/fixtures/freshness-repo");
     const program = createProgram();
-    await program.parseAsync([repo], { from: "user" });
+    await expect(program.parseAsync([repo], { from: "user" })).rejects.toThrow("exit:1");
+    expect(exitCode).toBe(1);
+    const text = stdout();
+    expect(text).toContain("score  64/100");
+    expect(text).toContain("6 reglas");
+    expect(text).toContain("ruta no encontrada: src/no-existo/");
+    expect(text).toContain("script no encontrado: compilar");
+    expect(text).toContain("dependencia no encontrada: no-such-pkg");
+    expect(text).toMatch(/10\s+✖/);
+    expect(text).toMatch(/10\s+⚠/);
+  });
+
+  it("prints parseable JSON with --json for agents-bueno.md", async () => {
+    const program = createProgram();
+    await program.parseAsync([bueno, "--json"], { from: "user" });
     expect(exitCode).toBeUndefined();
-    expect(logs[0]).toBe("6 rules");
-    expect(
-      logs.some((line) =>
-        line.startsWith("line 8 [FRESHNESS]: ruta - src/no-existo/ no encontrada"),
-      ),
-    ).toBe(true);
-    expect(logs).toContain(
-      "line 9 [FRESHNESS]: script - compilar no encontrada (package.json scripts)",
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).not.toMatch(/\x1B/);
+    const parsed = JSON.parse(logs[0] ?? "") as {
+      score: number;
+      reglas: { n: number };
+    };
+    expect(parsed.score).toBe(79);
+    expect(parsed.reglas.n).toBe(8);
+  });
+
+  it("prints parseable JSON and exits 1 for freshness-repo --json", async () => {
+    const repo = resolve("test/fixtures/freshness-repo");
+    const program = createProgram();
+    await expect(program.parseAsync([repo, "--json"], { from: "user" })).rejects.toThrow(
+      "exit:1",
     );
-    expect(logs).toContain(
-      "line 10 [FRESHNESS]: dependencia - no-such-pkg no encontrada (package.json dependencies/devDependencies)",
-    );
-    expect(logs.includes("freshness: OK")).toBe(false);
-    expect(logs).toContain("noise: 6% (~52 útiles de 55 totales)");
-    expect(logs).toContain("line 1 [RUIDO]: documentación — Mini repo");
+    expect(exitCode).toBe(1);
+    expect(logs).toHaveLength(1);
+    const parsed = JSON.parse(logs[0] ?? "") as {
+      score: number;
+      freshness: { findings: unknown[] };
+    };
+    expect(parsed.score).toBe(64);
+    expect(parsed.freshness.findings).toHaveLength(3);
   });
 });

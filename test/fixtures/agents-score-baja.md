@@ -1,0 +1,3 @@
+# Rules
+
+- Write clean code
