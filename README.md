@@ -23,7 +23,8 @@ npx rulerlint . --json
 - **Freshness**: paths, npm scripts, and dependencies checked against the real repo
 - **Noise / token cost**: documentation sections vs instruction sections
 - **`--json`**: machine-readable report on stdout
-- **Exit codes**: `1` on missing path / no instruction file / freshness errors; `0` if only warnings or infos
+- **`--judge`**: load LLM credentials (no API call yet)
+- **Exit codes**: `1` on missing path / no instruction file / freshness errors; `2` on `--judge` with broken LLM config; `0` if only warnings or infos
 
 ## Dogfooding
 
@@ -61,9 +62,39 @@ noise 5% Â· ~5 wasted tokens (87/92)
 
 Shorter, checkable rules. Score goes up; wasted tokens go down.
 
+## LLM judge (optional)
+
+Without `--judge`, `ruler` is unchanged: fully deterministic, no env or config files read.
+
+```bash
+npx rulerlint . --judge
+npx rulerlint . --json --judge
+```
+
+`--judge` only resolves credentials. It does not call any LLM API in this version.
+
+### Configuration
+
+Priority (last wins): built-in defaults → `~/.rulerlintrc.json` → `.rulerrc.json` in the **audited repo** → environment variables.
+
+| Source | Keys |
+|---|---|
+| Environment | `RULER_API_KEY`, `RULER_PROVIDER`, `RULER_MODEL` |
+| JSON files | `apiKey`, optional `provider`, optional `model` |
+
+Supported providers: `openrouter` (default, model `openai/gpt-4o-mini`) and `deepseek` (model `deepseek-chat`).
+
+`.rulerrc.json` lives in the **audited repository**, not in rulerlint. Never commit it. Add `.rulerrc.json` to **that repo's** `.gitignore` — rulerlint's own gitignore does not protect the audited project.
+
+### Exit codes
+
+- `0` — success (warnings / infos only)
+- `1` — missing path, no instruction file, or freshness errors
+- `2` — `--judge` with missing API key, unknown provider, or invalid JSON config
+
 ## Roadmap
 
-LLM judge, SKILL.md lint, and a GitHub Action â€” not in v0.1.
+LLM semantic checks, SKILL.md lint, and a GitHub Action — not in this version.
 
 ## License
 
